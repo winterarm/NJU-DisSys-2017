@@ -169,6 +169,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 	if rf.currentTerm > args.Term { // RPC call comes from an illegitimate leader
+		//我不接受可能来自老领导的消息
 		reply.Term, reply.Success = rf.currentTerm, false
 		return
 	} // else args.Term >= rf.currentTerm
@@ -178,21 +179,26 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	rf.electionTimer.Stop()
 	rf.electionTimer.Reset(newRandDuration(ElectionTimeout)) // reset electionTimer
 	if args.Term > rf.currentTerm {
+		//来新领导了,但我不确定他就一定是,先把领导任期记一下
 		rf.currentTerm, rf.votedFor = args.Term, -1
 	}
-	rf.state = Follower
-	logIndex := rf.logIndex
-	prevLogIndex := args.PrevLogIndex
+	rf.state = Follower               // 面对新领导 我只能是个跟随者
+	logIndex := rf.logIndex           //这是我接下来想记下来的日志编号
+	prevLogIndex := args.PrevLogIndex //新领导 认为我记到的地方,让我从这个日志往后开始记新的
 	if prevLogIndex < rf.lastIncludedIndex {
+		//跟新领导说 我已经记了一些其他的日志了 可能得重置一下我的日志了
 		reply.Success, reply.ConflictIndex = false, rf.lastIncludedIndex+1
 		return
 	}
-	if logIndex <= prevLogIndex || rf.getLogEntry(prevLogIndex).LogTerm != args.PrevLogTerm { // follower don't agree with leader on last log entry
-		conflictIndex := Min(rf.logIndex-1, prevLogIndex)
+	if logIndex <= prevLogIndex || rf.getLogEntry(prevLogIndex).LogTerm != args.PrevLogTerm {
+		// follower don't agree with leader on last log entry
+		// 领导你记得不对呀, 我接下来记得编号比你以为我记得还小 我的日志存在问题
+		// 你想记得编号的日志 我在别的领导那儿记过了
+		conflictIndex := Min(rf.logIndex-1, prevLogIndex) //看看我们是从哪儿开始不一致的
 		conflictTerm := rf.getLogEntry(conflictIndex).LogTerm
 		floor := Max(rf.lastIncludedIndex, rf.commitIndex)
 		for ; conflictIndex > floor && rf.getLogEntry(conflictIndex-1).LogTerm == conflictTerm; conflictIndex-- {
-		}
+		} // 看看咱到底是从哪儿开始不对的
 		reply.Success, reply.ConflictIndex = false, conflictIndex
 		return
 	}
@@ -260,7 +266,7 @@ func (rf *Raft) sendRequestVote(server int, args RequestVoteArgs, replyCh chan<-
 // if it's ever committed. the second return value is the current
 // term. the third return value is true if this server believes it is
 // the leader.
-// leader处理日志请求
+// leader处理客户端日志请求
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -270,6 +276,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	index := rf.logIndex
 	entry := LogEntry{LogIndex: index, LogTerm: rf.currentTerm, Command: command}
 	if offsetIndex := rf.logIndex - rf.lastIncludedIndex; offsetIndex < len(rf.log) {
+		//TODO
 		rf.log[offsetIndex] = entry
 	} else {
 		rf.log = append(rf.log, entry)
