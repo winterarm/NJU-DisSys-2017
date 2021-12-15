@@ -61,7 +61,7 @@ func make_config(t *testing.T, n int, unreliable bool) *config {
 
 	// create a full set of Rafts.
 	for i := 0; i < cfg.n; i++ {
-		cfg.logs[i] = map[int]int{}
+		cfg.logs[i] = map[int]int{} //保存所有节点的日志信息
 		cfg.start1(i)
 	}
 
@@ -122,7 +122,7 @@ func (cfg *config) start1(i int) {
 		cfg.endnames[i][j] = randstring(20) //名字随便起
 	}
 
-	// a fresh set of ClientEnds.
+	// a fresh set of ClientEnds. rpc通信的客户端名称分配和与节点之间呢做关联
 	ends := make([]*labrpc.ClientEnd, cfg.n)
 	for j := 0; j < cfg.n; j++ {
 		ends[j] = cfg.net.MakeEnd(cfg.endnames[i][j])
@@ -135,10 +135,11 @@ func (cfg *config) start1(i int) {
 	// new instance's persisted state.
 	// but copy old persister's content so that we always
 	// pass Make() the last persisted state.
+	// 在内存之中保存每个节点状态信息的数组
 	if cfg.saved[i] != nil {
-		cfg.saved[i] = cfg.saved[i].Copy()
+		cfg.saved[i] = cfg.saved[i].Copy() //之前由存在的话，恢复
 	} else {
-		cfg.saved[i] = MakePersister()
+		cfg.saved[i] = MakePersister() //全新的创建
 	}
 
 	cfg.mu.Unlock()
@@ -267,7 +268,7 @@ func (cfg *config) setlongreordering(longrel bool) {
 func (cfg *config) checkOneLeader() int {
 	for iters := 0; iters < 10; iters++ { //多查几回,万一大家忙着选举呢
 		time.Sleep(500 * time.Millisecond) //刚才可能没查到,歇一下,也许大家就选出来了
-		DPrintf("2_%d  %v,%v,%v", iters, cfg.rafts[0].currentTerm, cfg.rafts[1].currentTerm, cfg.rafts[2].currentTerm)
+		//DPrintf("2_%d  %v,%v,%v", iters, cfg.rafts[0].currentTerm, cfg.rafts[1].currentTerm, cfg.rafts[2].currentTerm)
 		leaders := make(map[int][]int)
 		for i := 0; i < cfg.n; i++ {
 			if cfg.connected[i] {

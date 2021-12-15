@@ -184,7 +184,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	prevLogIndex := args.PrevLogIndex // 新领导 认为我记到的地方,让我从这个日志往后开始记新的
 	if prevLogIndex < rf.lastIncludedIndex {
 		//跟新领导说 我已经记了一些其他的日志了 可能得重置一下我的日志了
-		reply.Success, reply.ConflictIndex = false, rf.lastIncludedIndex+1
+		reply.Success, reply.ConflictIndex = false, rf.commitIndex+1
 		return
 	}
 	if logIndex <= prevLogIndex || rf.log[prevLogIndex].LogTerm != args.PrevLogTerm {
@@ -193,8 +193,8 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		// 你想记得编号的日志 我在别的任期的领导那儿记过了
 		conflictIndex := Min(rf.logIndex-1, prevLogIndex) //看看我们是从哪儿开始不一致的
 		conflictTerm := rf.log[conflictIndex].LogTerm
-		floor := Max(rf.lastIncludedIndex, rf.commitIndex)
-		for ; conflictIndex > floor && rf.log[conflictIndex-1].LogTerm == conflictTerm; conflictIndex-- {
+		floor := rf.commitIndex
+		for ; conflictIndex > floor && rf.log[conflictIndex].LogTerm == conflictTerm; conflictIndex-- {
 		} // 看看咱到底是从哪儿开始不对的
 		reply.Success, reply.ConflictIndex = false, conflictIndex
 		return
@@ -209,7 +209,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			//当前我记的一些日志不是你想让我记的,我需要听你的
 			rf.logIndex = prevLogIndex + 1 + i
 			//truncationEndIndex := rf.logIndex - rf.lastIncludedIndex //丢弃掉这部分日志
-			rf.log = rf.log[:prevLogIndex+1]
+			rf.log = append([]LogEntry{}, rf.log[:prevLogIndex+1]...)
 			break
 		}
 	}
@@ -389,7 +389,15 @@ func (rf *Raft) sendLogEntry(follower int) {
 	}*/
 	prevLogIndex := rf.nextIndex[follower] - 1
 	prevLogTerm := rf.log[prevLogIndex].LogTerm
-	args := AppendEntriesArgs{Term: rf.currentTerm, LeaderId: rf.me, PrevLogIndex: prevLogIndex, PrevLogTerm: prevLogTerm, CommitIndex: rf.commitIndex, Len: 0, Entries: nil}
+	args := AppendEntriesArgs{
+		Term:         rf.currentTerm,
+		LeaderId:     rf.me,
+		PrevLogIndex: prevLogIndex,
+		PrevLogTerm:  prevLogTerm,
+		CommitIndex:  rf.commitIndex,
+		Len:          0,
+		Entries:      nil,
+	}
 	if rf.nextIndex[follower] < rf.logIndex {
 		//计算需要同步的日志
 		entries := rf.log[prevLogIndex+1 : rf.logIndex]
@@ -456,8 +464,8 @@ func (rf *Raft) sendLogSnapshot(follower int, startIndex int) {
 		rf.mu.Unlock()
 		return
 	}
-	args := InstallSnapshotArgs{Term: rf.currentTerm, LeaderId: rf.me, LastIncludedIndex: rf.lastIncludedIndex,
-		LastIncludedTerm: rf.log[rf.lastIncludedIndex].LogTerm, Entries: rf.log[startIndex:]}
+	args := InstallSnapshotArgs{Term: rf.currentTerm, LeaderId: rf.me, StartIndex: startIndex,
+		LastIncludedTerm: rf.log[startIndex].LogTerm, Entries: rf.log[startIndex:]}
 	rf.mu.Unlock()
 	var reply InstallSnapshotReply
 	if rf.peers[follower].Call("Raft.InstallSnapshot", &args, &reply) {
@@ -483,9 +491,9 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
 		return
 	}
 	rf.leaderId = args.LeaderId
-	if args.LastIncludedIndex > rf.lastIncludedIndex {
-		rf.log = append(rf.log[:rf.lastIncludedIndex+1], args.Entries...)
-		rf.lastIncludedIndex = args.LastIncludedIndex
+	if args.StartIndex <= rf.lastIncludedIndex {
+		rf.log = append(rf.log[:args.StartIndex], args.Entries...)
+		rf.lastIncludedIndex = args.StartIndex + len(args.Entries) - 1
 		rf.logIndex = rf.lastIncludedIndex + 1
 	}
 	rf.electionTimer.Stop()
