@@ -7,7 +7,7 @@ const Debug = 1
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
 	if Debug > 0 {
-		log.Printf(format, a...)
+		log.Printf("DEBUG----"+format, a...)
 	}
 	return
 }
@@ -103,11 +103,11 @@ type AppendEntriesReply struct {
 
 // InstallSnapshotArgs 批量同步日志数据结构体
 type InstallSnapshotArgs struct {
-	Term              int
-	LeaderId          int
-	LastIncludedIndex int
-	LastIncludedTerm  int
-	Entries           []LogEntry // 同步的日志
+	Term             int
+	LeaderId         int
+	StartIndex       int
+	LastIncludedTerm int
+	Entries          []LogEntry // 同步的日志
 }
 
 // InstallSnapshotReply 批量同步日志的返回
