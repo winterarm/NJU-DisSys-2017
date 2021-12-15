@@ -54,6 +54,7 @@ func (state serverState) String() string {
 	}
 }
 
+// ApplyMsg 领导者发送的消息
 type ApplyMsg struct {
 	CommandValid bool
 	CommandIndex int
@@ -61,25 +62,27 @@ type ApplyMsg struct {
 	Command      interface{}
 }
 
-// struct definition for log entry
+// LogEntry 日志结构体定义
 type LogEntry struct {
 	LogIndex int
 	LogTerm  int
 	Command  interface{}
 }
 
+// RequestVoteArgs 投票请求参数结构体定义
 type RequestVoteArgs struct {
-	Term, // candidate's current term
-	CandidateId, // candidate requesting vote
-	LastLogIndex, // index of candidate's last log entry
-	LastLogTerm int // term of candidate's last log entry
+	Term, // 参选的任期
+	CandidateId, // 参选人ID
+	LastLogIndex, // 参选人的最后接收的log的索引编号
+	LastLogTerm int // 最后接收的log的任期Term
 }
 
+// RequestVoteReply 投票消息回复结构体定义
 type RequestVoteReply struct {
 	Err         Err
 	Server      int
-	VoteGranted bool // true means candidate received vote
-	Term        int  // current term from other servers
+	VoteGranted bool // true 表示获得投票
+	Term        int  // 告知参选者自己所处的任期Term
 }
 
 type AppendEntriesArgs struct {
@@ -88,16 +91,17 @@ type AppendEntriesArgs struct {
 	PrevLogIndex,
 	PrevLogTerm,
 	CommitIndex int
-	Len     int        // number of logs sends to follower
-	Entries []LogEntry // logs that send to follower
+	Len     int        // 发送的日志数量
+	Entries []LogEntry // 日志数据
 }
 
 type AppendEntriesReply struct {
-	Success       bool // true if follower contained entry matching prevLogIndex and prevLogTerm
-	Term          int
-	ConflictIndex int // in case of conflicting, follower include the first index it store for conflict term
+	Success       bool // true 跟随者接收的最后的日志信息与请求添加者的信息一致
+	Term          int  // 返回请求者和自己Term信息中更大的那个
+	ConflictIndex int  // 若存在不一致日志,告知最早不一致的日志编号
 }
 
+// InstallSnapshotArgs 批量同步日志数据结构体
 type InstallSnapshotArgs struct {
 	Term              int
 	LeaderId          int
@@ -106,7 +110,8 @@ type InstallSnapshotArgs struct {
 	Data              []byte
 }
 
+// InstallSnapshotReply 批量同步日志的返回
 type InstallSnapshotReply struct {
 	Err  Err
-	Term int
+	Term int //返回日志发送方和接收方Term更大的值
 }

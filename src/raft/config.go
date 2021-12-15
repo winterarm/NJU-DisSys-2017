@@ -40,6 +40,7 @@ type config struct {
 	logs      []map[int]int // copy of each server's committed entries
 }
 
+//初始化一个分布式网络集群
 func make_config(t *testing.T, n int, unreliable bool) *config {
 	//初始化一套配置
 	runtime.GOMAXPROCS(4)
@@ -74,7 +75,7 @@ func make_config(t *testing.T, n int, unreliable bool) *config {
 
 // shut down a Raft server but save its persistent state.
 func (cfg *config) crash1(i int) {
-	cfg.disconnect(i)       //别听了,也别说了,你完了
+	cfg.disconnect(i)       // 关进小黑屋
 	cfg.net.DeleteServer(i) // 网络里没你了
 
 	cfg.mu.Lock()
@@ -92,9 +93,9 @@ func (cfg *config) crash1(i int) {
 	rf := cfg.rafts[i]
 	if rf != nil {
 		cfg.mu.Unlock()
-		rf.Kill() //杀了你哦
+		rf.Kill() //你不该存在,杀了你
 		cfg.mu.Lock()
-		cfg.rafts[i] = nil //你没了
+		cfg.rafts[i] = nil //毁尸灭迹
 	}
 
 	if cfg.saved[i] != nil {
@@ -110,7 +111,7 @@ func (cfg *config) crash1(i int) {
 // allocate new outgoing port file names, and a new
 // state persister, to isolate previous instance of
 // this server. since we cannot really kill it.
-//
+// 创建一个新的raft节点
 func (cfg *config) start1(i int) {
 	cfg.crash1(i)
 
@@ -143,13 +144,13 @@ func (cfg *config) start1(i int) {
 	cfg.mu.Unlock()
 
 	// listen to messages from Raft indicating newly committed messages.
-	//为当前raft节点创建通道,用于监听提交的消息 并发体
+	//为当前raft节点创建通道,用于更新日志的变化 并发体
 	applyCh := make(chan ApplyMsg)
 	go func() {
-		for m := range applyCh {
+		for m := range applyCh { // 遍历需要持久化的日志
 			err_msg := ""
 			if m.CommandValid == false {
-				// ignore other types of ApplyMsg
+				// ignore other types of ApplyMsg 心跳之类的无需持久化的日志
 			} else if v, ok := (m.Command).(int); ok {
 				cfg.mu.Lock()
 				for j := 0; j < len(cfg.logs); j++ {
@@ -159,11 +160,11 @@ func (cfg *config) start1(i int) {
 							m.CommandIndex, i, m.Command, j, old)
 					}
 				}
-				_, prevok := cfg.logs[i][m.CommandIndex-1]
-				cfg.logs[i][m.CommandIndex] = v
+				_, prevok := cfg.logs[i][m.CommandIndex-1] //检查前一个日志的持久化状态
+				cfg.logs[i][m.CommandIndex] = v            //更新日志的内容
 				cfg.mu.Unlock()
 
-				if m.CommandIndex > 1 && prevok == false {
+				if m.CommandIndex > 1 && prevok == false { //前一个日志持久化异常
 					err_msg = fmt.Sprintf("server %v apply out of order %v", i, m.CommandIndex)
 				}
 			} else {
@@ -171,6 +172,7 @@ func (cfg *config) start1(i int) {
 			}
 
 			if err_msg != "" {
+				// 保存当前日志持久化的异常信息
 				log.Fatalf("apply error: %v\n", err_msg)
 				cfg.applyErr[i] = err_msg
 				// keep reading after error so that Raft doesn't block
@@ -264,6 +266,7 @@ func (cfg *config) setlongreordering(longrel bool) {
 func (cfg *config) checkOneLeader() int {
 	for iters := 0; iters < 10; iters++ { //多查几回,万一大家忙着选举呢
 		time.Sleep(500 * time.Millisecond) //刚才可能没查到,歇一下,也许大家就选出来了
+		DPrintf("2_%d  %v,%v,%v", iters, cfg.rafts[0].currentTerm, cfg.rafts[1].currentTerm, cfg.rafts[2].currentTerm)
 		leaders := make(map[int][]int)
 		for i := 0; i < cfg.n; i++ {
 			if cfg.connected[i] {
@@ -327,6 +330,7 @@ func (cfg *config) nCommitted(index int) (int, interface{}) {
 	cmd := -1
 	for i := 0; i < len(cfg.rafts); i++ {
 		if cfg.applyErr[i] != "" {
+			//当前日志索引存在保存信息
 			cfg.t.Fatal(cfg.applyErr[i])
 		}
 
@@ -384,6 +388,7 @@ func (cfg *config) wait(index int, n int, startTerm int) interface{} {
 // same value, since nCommitted() checks this,
 // as do the threads that read from applyCh.
 // returns index.
+// 客户端发送一条指令,并说明期望的服务器
 func (cfg *config) one(cmd int, expectedServers int) int {
 	t0 := time.Now()
 	starts := 0
@@ -399,7 +404,7 @@ func (cfg *config) one(cmd int, expectedServers int) int {
 			}
 			cfg.mu.Unlock()
 			if rf != nil {
-				index1, _, ok := rf.Start(cmd) //找到领导了, 领导给我干活呀
+				index1, _, ok := rf.Start(cmd) //找到工头了, 来给我干活吧
 				if ok {
 					index = index1
 					break
@@ -411,7 +416,7 @@ func (cfg *config) one(cmd int, expectedServers int) int {
 			// somebody claimed to be the leader and to have
 			// submitted our command; wait a while for agreement.
 			t1 := time.Now()
-			for time.Since(t1).Seconds() < 2 { //多等一会儿, 等大家提交一下
+			for time.Since(t1).Seconds() < 2 { //一共就等2秒,看看结果
 				nd, cmd1 := cfg.nCommitted(index)
 				if nd > 0 && nd >= expectedServers { //看看大家提交的数量我满不满意
 					// committed
@@ -420,11 +425,13 @@ func (cfg *config) one(cmd int, expectedServers int) int {
 						return index
 					}
 				}
-				time.Sleep(20 * time.Millisecond)
+				time.Sleep(20 * time.Millisecond) //稍微歇一下再看
 			}
 		} else {
 			time.Sleep(50 * time.Millisecond)
+			//没找到工头,稍等一下再试
 		}
+		//如果还有时间就再试试看能不能行
 	}
 	cfg.t.Fatalf("one(%v) failed to reach agreement", cmd)
 	return -1
