@@ -3,7 +3,7 @@ package raft
 import "log"
 
 // Debugging
-const Debug = 0
+const Debug = 1
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
 	if Debug > 0 {
@@ -107,7 +107,7 @@ type InstallSnapshotArgs struct {
 	LeaderId          int
 	LastIncludedIndex int
 	LastIncludedTerm  int
-	Data              []byte
+	Entries           []LogEntry // 同步的日志
 }
 
 // InstallSnapshotReply 批量同步日志的返回

@@ -165,7 +165,7 @@ func (cfg *config) start1(i int) {
 				cfg.mu.Unlock()
 
 				if m.CommandIndex > 1 && prevok == false { //前一个日志持久化异常
-					err_msg = fmt.Sprintf("server %v apply out of order %v", i, m.CommandIndex)
+					err_msg = fmt.Sprintf("server %v logIndex %v apply out of order ", i, m.CommandIndex)
 				}
 			} else {
 				err_msg = fmt.Sprintf("committed command %v is not an int", m.Command)
@@ -178,6 +178,7 @@ func (cfg *config) start1(i int) {
 				// keep reading after error so that Raft doesn't block
 				// holding locks...
 			}
+			DPrintf("PERSISTLOG_SUC:Server %d, CommandIndex %d", i, m.CommandIndex)
 		}
 	}()
 
@@ -330,7 +331,7 @@ func (cfg *config) nCommitted(index int) (int, interface{}) {
 	cmd := -1
 	for i := 0; i < len(cfg.rafts); i++ {
 		if cfg.applyErr[i] != "" {
-			//当前日志索引存在保存信息
+			//当前日志索引存在错误信息
 			cfg.t.Fatal(cfg.applyErr[i])
 		}
 
