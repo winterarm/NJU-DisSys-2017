@@ -93,7 +93,7 @@ func (cfg *config) crash1(i int) {
 	rf := cfg.rafts[i]
 	if rf != nil {
 		cfg.mu.Unlock()
-		rf.Kill() //杀了你哦
+		rf.Kill() //你不该存在,杀了你
 		cfg.mu.Lock()
 		cfg.rafts[i] = nil //毁尸灭迹
 	}
@@ -268,6 +268,7 @@ func (cfg *config) setlongreordering(longrel bool) {
 func (cfg *config) checkOneLeader() int {
 	for iters := 0; iters < 10; iters++ { //多查几回,万一大家忙着选举呢
 		time.Sleep(500 * time.Millisecond) //刚才可能没查到,歇一下,也许大家就选出来了
+		DPrintf("2_%d  %v,%v,%v", iters, cfg.rafts[0].currentTerm, cfg.rafts[1].currentTerm, cfg.rafts[2].currentTerm)
 		leaders := make(map[int][]int)
 		for i := 0; i < cfg.n; i++ {
 			if cfg.connected[i] {

@@ -340,14 +340,8 @@ func (rf *Raft) campaign() {
 	if rf.state == Candidate { // check if server is in candidate state before becoming a leader
 		DPrintf("WIN:CANDIDATE: %d", rf.me)
 		rf.state = Leader
-		//获选后初始化数据
-		peersNum := len(rf.peers)
-		rf.nextIndex, rf.matchIndex = make([]int, peersNum), make([]int, peersNum)
-		for i := 0; i < peersNum; i++ {
-			rf.nextIndex[i] = rf.logIndex
-			rf.matchIndex[i] = 0
-		}
-		go rf.heartbeat() //发送心跳 也给自己发 这套系统的领导者的定时器是不关的
+		rf.electionTimer.Stop()
+		go rf.heartbeat() //发送心跳 这套系统的领导者的定时器是不关的,也是靠自己的心跳续命
 	} // if server is not in candidate state, then another server may establishes itself as leader
 	rf.mu.Unlock()
 }
@@ -403,7 +397,6 @@ func (rf *Raft) sendLogEntry(follower int) {
 		DPrintf("APPEND_CHECK:Follower %d, Leader %d, LOG_LEN %d", follower, rf.me, args.Len)
 	}
 	rf.mu.Unlock()
-	//接受者回复日志消息
 	var reply AppendEntriesReply
 	if rf.peers[follower].Call("Raft.AppendEntries", &args, &reply) {
 		//收到有效回复的处理
@@ -572,8 +565,6 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 	rf.persister = persister
 	rf.me = me
 
-	// Your initialization code here.
-	// 代表无领导人。
 	rf.leaderId = -1
 	rf.currentTerm = 0
 	rf.votedFor = -1
