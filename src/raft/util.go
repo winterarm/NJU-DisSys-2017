@@ -3,7 +3,7 @@ package raft
 import "log"
 
 // Debugging
-const Debug = 1
+const Debug = 0
 
 func DPrintf(format string, a ...interface{}) (n int, err error) {
 	if Debug > 0 {
@@ -54,7 +54,7 @@ func (state serverState) String() string {
 	}
 }
 
-// ApplyMsg 领导者发送的消息
+// ApplyMsg 持久化的数据结构
 type ApplyMsg struct {
 	CommandValid bool
 	CommandIndex int
@@ -88,9 +88,9 @@ type RequestVoteReply struct {
 type AppendEntriesArgs struct {
 	Term,
 	LeaderId,
-	PrevLogIndex,
-	PrevLogTerm,
-	CommitIndex int
+	PrevLogIndex, //同步开始的日志编号
+	PrevLogTerm, //同步开始的日志Term
+	CommitIndex int //可提交的日志编号
 	Len     int        // 发送的日志数量
 	Entries []LogEntry // 日志数据
 }
