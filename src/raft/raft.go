@@ -550,7 +550,7 @@ func Make(peers []*labrpc.ClientEnd, me int, persister *Persister, applyCh chan 
 	rf.notifyApplyCh = make(chan struct{}, 100)
 	rf.electionTimer = time.NewTimer(newRandDuration(ElectionTimeout))
 	rf.restorePersistState(persister.ReadRaftState()) // 看看我以前干啥了, 把业绩找回来
-	go rf.apply()                                     // 检测日志消息变化,实现日志的更新
+	go rf.apply()                                     // 检测日志消息变化,实现日志的本地化处理
 	go func() {
 		for {
 			select {

@@ -100,18 +100,3 @@ type AppendEntriesReply struct {
 	Term          int  // 返回请求者和自己Term信息中更大的那个
 	ConflictIndex int  // 若存在不一致日志,告知最早不一致的日志编号
 }
-
-// InstallSnapshotArgs 批量同步日志数据结构体
-type InstallSnapshotArgs struct {
-	Term             int
-	LeaderId         int
-	StartIndex       int
-	LastIncludedTerm int
-	Entries          []LogEntry // 同步的日志
-}
-
-// InstallSnapshotReply 批量同步日志的返回
-type InstallSnapshotReply struct {
-	Err  Err
-	Term int //返回日志发送方和接收方Term更大的值
-}
